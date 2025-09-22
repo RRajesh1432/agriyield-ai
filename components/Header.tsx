@@ -37,6 +37,7 @@ const Header: React.FC<HeaderProps> = ({ currentPage, setCurrentPage }) => {
           <div className="hidden md:block">
             <div className="ml-10 flex items-baseline space-x-4">
               <NavLink page="predict" currentPage={currentPage} setCurrentPage={setCurrentPage}>Predict</NavLink>
+              <NavLink page="farmers" currentPage={currentPage} setCurrentPage={setCurrentPage}>Farmers</NavLink>
               <NavLink page="history" currentPage={currentPage} setCurrentPage={setCurrentPage}>History</NavLink>
               <NavLink page="analytics" currentPage={currentPage} setCurrentPage={setCurrentPage}>Analytics</NavLink>
               <NavLink page="explorer" currentPage={currentPage} setCurrentPage={setCurrentPage}>Crop Explorer</NavLink>

@@ -24,19 +24,6 @@ export enum FertilizerType {
   'None' = 'None',
 }
 
-export interface Farmer {
-  id: string;
-  name: string;
-}
-
-export interface Land {
-  id: string;
-  farmerId: string;
-  area: number; // hectares
-  shape: string; // GeoJSON
-  soilType: SoilType;
-}
-
 export interface PredictionFormData {
   cropType: CropType;
   fieldShape: string; // Will store GeoJSON string of the polygon
@@ -46,9 +33,6 @@ export interface PredictionFormData {
   pesticideUsage: boolean;
   fertilizerType: FertilizerType;
   area: number; // This will now be calculated from the map
-  taskDescription: string;
-  farmerId?: string;
-  landId?: string;
 }
 
 export interface Recommendation {
@@ -87,14 +71,9 @@ export interface CropInfo {
   growingCycle: string;
 }
 
-export type Page = 'predict' | 'farmers' | 'history' | 'analytics' | 'explorer' | 'about';
+export type Page = 'predict' | 'history' | 'analytics' | 'explorer' | 'about';
 
-export interface WeatherDataPoint {
-  month: string;
-  value: number;
-}
-
-export interface HistoricalWeatherData {
-  monthlyTemperature: WeatherDataPoint[];
-  monthlyRainfall: WeatherDataPoint[];
+export interface ChatMessage {
+  role: 'user' | 'model';
+  text: string;
 }

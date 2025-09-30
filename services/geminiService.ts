@@ -1,5 +1,6 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
-import type { PredictionFormData, PredictionResult, CropInfo, HistoricalWeatherData, Farmer, Land } from '../types';
+import type { PredictionFormData, PredictionResult, CropInfo } from '../types';
 
 if (!process.env.API_KEY) {
     console.error("API_KEY environment variable not set.");
@@ -59,58 +60,11 @@ const cropInfoSchema = {
     required: ["cropName", "description", "idealConditions", "commonPests", "growingCycle"]
 };
 
-const weatherDataPointSchema = {
-    type: Type.OBJECT,
-    properties: {
-        month: { type: Type.STRING, description: "The month, abbreviated (e.g., 'Jan', 'Feb')." },
-        value: { type: Type.NUMBER, description: "The numerical value for that month." }
-    },
-    required: ["month", "value"]
-};
 
-const historicalWeatherSchema = {
-    type: Type.OBJECT,
-    properties: {
-        monthlyTemperature: {
-            type: Type.ARRAY,
-            description: "Average temperature in Celsius for each of the last 12 months.",
-            items: weatherDataPointSchema
-        },
-        monthlyRainfall: {
-            type: Type.ARRAY,
-            description: "Total rainfall in millimeters for each of the last 12 months.",
-            items: weatherDataPointSchema
-        }
-    },
-    required: ["monthlyTemperature", "monthlyRainfall"]
-};
-
-
-const generatePrompt = (data: PredictionFormData, farmers: Farmer[], lands: Land[]): string => {
-    const farmerName = data.farmerId ? farmers.find(f => f.id === data.farmerId)?.name : undefined;
-    
-    let landIdentifier = 'Not specified';
-    if(data.farmerId && data.landId) {
-        const farmerLands = lands.filter(l => l.farmerId === data.farmerId);
-        const landIndex = farmerLands.findIndex(l => l.id === data.landId);
-        if(landIndex !== -1) {
-            landIdentifier = `Land ${landIndex + 1}`;
-        }
-    }
-
-    let farmContext = '';
-    if (farmerName) {
-        farmContext = `
-      Farm Context:
-      - Farmer: ${farmerName}
-      - Land Plot: ${landIdentifier}`;
-    }
-
+const generatePrompt = (data: PredictionFormData): string => {
     return `
       Analyze the following agricultural data to predict crop yield and provide recommendations.
       The output must be a JSON object matching the provided schema.
-      The recommendations should be tailored to the provided 'Task Description'.
-      ${farmContext}
 
       Farm Data:
       - Crop Type: ${data.cropType}
@@ -121,7 +75,6 @@ const generatePrompt = (data: PredictionFormData, farmers: Farmer[], lands: Land
       - Pesticide Usage: ${data.pesticideUsage ? 'Yes' : 'No'}
       - Fertilizer Type: ${data.fertilizerType}
       - Area (hectares): ${data.area}
-      - Task Description: ${data.taskDescription || 'Not provided'}
 
       Based on this data, provide a detailed analysis including predicted yield, risk factors, and actionable recommendations.
       The confidence score should reflect the quality and completeness of the input data.
@@ -129,12 +82,12 @@ const generatePrompt = (data: PredictionFormData, farmers: Farmer[], lands: Land
     `;
 };
 
-export const predictYield = async (formData: PredictionFormData, farmers: Farmer[], lands: Land[]): Promise<PredictionResult> => {
+export const predictYield = async (formData: PredictionFormData): Promise<PredictionResult> => {
     try {
         if (!formData.fieldShape || formData.area <= 0) {
-            throw new Error("Please draw the field shape on the map or select a saved land before getting a prediction.");
+            throw new Error("Please draw the field shape on the map before getting a prediction.");
         }
-        const prompt = generatePrompt(formData, farmers, lands);
+        const prompt = generatePrompt(formData);
         const response = await ai.models.generateContent({
             model: "gemini-2.5-flash",
             contents: prompt,
@@ -145,8 +98,10 @@ export const predictYield = async (formData: PredictionFormData, farmers: Farmer
         });
 
         const jsonString = response.text.trim();
+        // Add robust parsing with validation
         const parsedResult = JSON.parse(jsonString);
         
+        // Basic validation
         if (!parsedResult.predictedYield || !parsedResult.summary) {
             throw new Error("Invalid JSON schema received from API.");
         }
@@ -155,7 +110,7 @@ export const predictYield = async (formData: PredictionFormData, farmers: Farmer
 
     } catch (error) {
         console.error("Error calling Gemini API for yield prediction:", error);
-        if (error instanceof Error && (error.message.includes("Please draw the field shape") || error.message.includes("select a saved land"))) {
+        if (error instanceof Error && error.message.includes("Please draw the field shape")) {
             throw error;
         }
         throw new Error("Failed to get prediction from AgriYield-AI. Please check your inputs and API key.");
@@ -184,23 +139,23 @@ export const getCropInfo = async (cropName: string): Promise<CropInfo> => {
     }
 };
 
-export const getHistoricalWeather = async (region: string): Promise<HistoricalWeatherData> => {
+
+export const askChatbot = async (question: string): Promise<string> => {
     try {
-        const prompt = `Generate synthetic historical weather data for the region: "${region}". Provide the average monthly temperature (in Celsius) and total monthly rainfall (in mm) for the last 12 months. The output must be a JSON object matching the provided schema. The months should be in chronological order starting from 12 months ago to the last month.`;
-        
+        const systemInstruction = "You are a helpful and friendly assistant for the AgriYield-AI application. Your purpose is to answer frequently asked questions about the app's features, how to use it, and the technology behind it. Keep your answers concise and clear, using markdown for formatting if needed. Do not answer questions that are not related to AgriYield-AI, agriculture, or farming technology. If a question is off-topic, politely decline to answer and steer the conversation back to the app's purpose.";
+
         const response = await ai.models.generateContent({
             model: "gemini-2.5-flash",
-            contents: prompt,
+            contents: question,
             config: {
-                responseMimeType: "application/json",
-                responseSchema: historicalWeatherSchema
-            }
+                systemInstruction: systemInstruction,
+            },
         });
 
-        const jsonString = response.text.trim();
-        return JSON.parse(jsonString) as HistoricalWeatherData;
+        return response.text;
+
     } catch (error) {
-        console.error("Error calling Gemini API for historical weather:", error);
-        throw new Error(`Failed to get historical weather data for ${region}.`);
+        console.error("Error calling Gemini API for chatbot:", error);
+        return "Sorry, I'm having trouble connecting to my brain right now. Please try again later.";
     }
 };
